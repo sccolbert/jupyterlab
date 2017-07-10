@@ -105,8 +105,8 @@ class OutputAreaView extends Widget {
    * A message handler invoked on a `'refresh-request'` message.
    */
   private _onRefreshRequest(msg: Message): void {
-    // Update the node trusted flag.
-    this.node.dataset['trusted'] = `${this._area ? this._area.trusted : false}`;
+    // Toggle the trusted class.
+    this.toggleClass('jp-mod-trusted', !!(this._area && this._area.trusted));
 
     // Collect a temporary mapping of the current item views.
     let layout = this.layout as PanelLayout;
@@ -276,9 +276,9 @@ class OutputItemView extends Widget {
     // Clear the content if there is no output item to render.
     if (!this._item) {
       // Clear the node state.
-      this.node.dataset['output-type'] = '';
-      this.node.dataset['trusted'] = `${false}`;
-      this.node.dataset['mime-type'] = '';
+      this.removeClass('jp-mod-trusted');
+      this.node.dataset['outputType'] = '';
+      this.node.dataset['mimeType'] = '';
 
       // Clear the internal mime type.
       this._mimeType = '';
@@ -293,20 +293,22 @@ class OutputItemView extends Widget {
       return;
     }
 
+    // Set up the item data.
+    let trusted = this._item.trusted;
+    let data = Private.getData(this._item);
+    let metadata = Private.getMetadata(this._item);
+
     // Update the node state.
-    this.node.dataset['output-type'] = this._item.type;
-    this.node.dataset['trusted'] = `${this._item.trusted}`;
+    this.toggleClass('jp-mod-trusted', trusted);
+    this.node.dataset['outputType'] = this._item.type;
 
     // Create the new mime model.
     let model: IRenderMime.IMimeModel = {
-      trusted: this._item.trusted,
-      data: Private.getData(this._item),
-      metadata: Private.getMetadata(this._item),
-      setData: this._setData
+      trusted, data, metadata, setData: this._setData
     };
 
     // Look up the preferred mime type for the model.
-    let mimeType = this.rendermime.preferredMimeType(model) || '';
+    let mimeType = this.rendermime.preferredMimeType(data, !trusted) || '';
 
     // Update the existing renderer in-place if possible.
     if (this._renderer && this._mimeType === mimeType) {
@@ -318,7 +320,7 @@ class OutputItemView extends Widget {
     this._mimeType = mimeType;
 
     // Update the node mime type.
-    this.node.dataset['mime-type'] = mimeType;
+    this.node.dataset['mimeType'] = mimeType;
 
     // Dispose the existing renderer.
     if (this._renderer) {

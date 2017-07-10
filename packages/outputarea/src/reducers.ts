@@ -7,12 +7,8 @@ import {
 } from '@jupyterlab/coreutils';
 
 import {
-  JSONExt
+  JSONExt, UUID
 } from '@phosphor/coreutils';
-
-import {
-  uuid4
-} from '@phosphor/datastore';
 
 import {
   AppendOutputAction, ClearOutputsAction, OutputAction, OutputActionType,
@@ -78,7 +74,7 @@ function appendOutput(state: OutputStoreState, action: AppendOutputAction): Outp
   }
 
   // Create a UUID for the new output item.
-  let itemId = uuid4();
+  let itemId = UUID.uuid4();
 
   // Create the new output item.
   let item = Private.createOutputItem(output, area.trusted);

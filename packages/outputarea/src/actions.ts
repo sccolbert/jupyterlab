@@ -15,26 +15,15 @@ import {
 } from '@phosphor/datastore';
 
 
-// TOOD replace this namespace with a string enum once we're on TS 2.4
+/**
+ * An enum of the output action type names.
+ */
 export
-namespace OutputActionType {
-  export type APPEND_OUTPUT = '@jupyterlab/outputarea/APPEND_OUTPUT';
-  export const APPEND_OUTPUT: APPEND_OUTPUT = '@jupyterlab/outputarea/APPEND_OUTPUT';
-
-  export type CLEAR_OUTPUTS = '@jupyterlab/outputarea/CLEAR_OUTPUTS';
-  export const CLEAR_OUTPUTS: CLEAR_OUTPUTS = '@jupyterlab/outputarea/CLEAR_OUTPUTS';
-
-  export type SET_OUTPUT_DATA = '@jupyterlab/outputarea/SET_OUTPUT_DATA';
-  export const SET_OUTPUT_DATA: SET_OUTPUT_DATA = '@jupyterlab/outputarea/SET_OUTPUT_DATA';
+enum OutputActionType {
+  APPEND_OUTPUT = '@jupyterlab/outputarea/APPEND_OUTPUT',
+  CLEAR_OUTPUTS = '@jupyterlab/outputarea/CLEAR_OUTPUTS',
+  SET_OUTPUT_DATA = '@jupyterlab/outputarea/SET_OUTPUT_DATA'
 }
-// /**
-//  * An enum of the output action type names.
-//  */
-// export
-// enum OutputActionType {
-//   APPEND_OUTPUT = '@jupyterlab/outputarea/APPEND_OUTPUT',
-//   CLEAR_OUTPUTS = '@jupyterlab/outputarea/CLEAR_OUTPUTS'
-// }
 
 
 /**

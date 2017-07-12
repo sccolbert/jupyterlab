@@ -15,19 +15,15 @@ import {
 } from '@phosphor/messaging';
 
 import {
-  PanelLayout, SingleLayout, Widget
+  PanelLayout, SingletonLayout, Widget
 } from '@phosphor/widgets';
-
-import {
-  List
-} from 'immutable';
 
 import {
   SetOutputDataAction
 } from './actions';
 
 import {
-  ErrorOutput, OutputArea, OutputItem, OutputStore
+  DisplayDataOutput, ErrorOutput, OutputArea, OutputItem, OutputStore
 } from './models';
 
 
@@ -48,14 +44,6 @@ class OutputAreaView extends Widget {
     this.areaId = options.areaId;
     this.store.changed.connect(this._onStoreChanged, this);
     this.layout = new PanelLayout();
-  }
-
-  /**
-   * Dispose of the resources held by the widget.
-   */
-  dispose(): void {
-    this._area = null;
-    super.dispose();
   }
 
   /**
@@ -105,34 +93,34 @@ class OutputAreaView extends Widget {
    * A message handler invoked on a `'refresh-request'` message.
    */
   private _onRefreshRequest(msg: Message): void {
+    // Unpack the store and rendermime.
+    let { store, rendermime } = this;
+
+    // Unpack the output area state.
+    let { trusted, outputItemIds } = this._area;
+
     // Toggle the trusted class.
-    this.toggleClass('jp-mod-trusted', !!(this._area && this._area.trusted));
+    this.toggleClass('jp-mod-trusted', trusted);
 
     // Collect a temporary mapping of the current item views.
     let layout = this.layout as PanelLayout;
     let itemIdMap: { [key: string]: OutputItemView } = {};
     for (let widget of layout.widgets) {
       if (widget instanceof OutputItemView) {
-        itemIdMap[widget.id] = widget;
+        itemIdMap[widget.itemId] = widget;
       }
     }
 
-    // Unpack the store and rendermime.
-    let { store, rendermime } = this;
-
-    // Get the list of output ids.
-    let idList = this._area ? this._area.outputItemIds : List<string>();
-
     // Synchronize the layout with the list.
-    for (let i = 0; i < idList.size; ++i) {
+    for (let i = 0; i < outputItemIds.size; ++i) {
       let view: OutputItemView;
-      let itemId = idList.get(i);
+      let itemId = outputItemIds.get(i);
       if (itemId in itemIdMap) {
         view = itemIdMap[itemId];
         delete itemIdMap[itemId];
       } else {
         view = new OutputItemView({ store, itemId, rendermime });
-        view.addClass('jp-OutputAreaView-outputItem');
+        view.addClass('jp-OutputAreaView-item');
       }
       if (layout.widgets[i] !== view) {
         layout.insertWidget(i, view);
@@ -150,7 +138,10 @@ class OutputAreaView extends Widget {
    */
   private _onStoreChanged(): void {
     // Look up the output area.
-    let area = this.store.state.outputAreaTable.get(this.areaId) || null;
+    let area = this.store.state.outputAreaTable.get(this.areaId);
+
+    // If the area id does not exist, use the empty area.
+    area = area || Private.emptyArea;
 
     // Bail early if the output area did not change.
     if (this._area === area) {
@@ -164,7 +155,7 @@ class OutputAreaView extends Widget {
     this.refresh();
   }
 
-  private _area: OutputArea | null = null;
+  private _area: OutputArea = Private.emptyArea;
 }
 
 
@@ -213,17 +204,7 @@ class OutputItemView extends Widget {
     this.itemId = options.itemId;
     this.rendermime = options.rendermime;
     this.store.changed.connect(this._onStoreChanged, this);
-    this.layout = new SingleLayout();
-  }
-
-  /**
-   * Dispose of the resources held by the widget.
-   */
-  dispose(): void {
-    this._item = null;
-    this._mimeType = '';
-    this._renderer = null;
-    super.dispose();
+    this.layout = new SingletonLayout();
   }
 
   /**
@@ -273,25 +254,11 @@ class OutputItemView extends Widget {
    * A message handler invoked on a `'refresh-request'` message.
    */
   private _onRefreshRequest(msg: Message): void {
-    // Clear the content if there is no output item to render.
-    if (!this._item) {
-      // Clear the node state.
-      this.removeClass('jp-mod-trusted');
-      this.node.dataset['outputType'] = '';
-      this.node.dataset['mimeType'] = '';
+    // Fetch the widget layout.
+    let layout = this.layout as SingletonLayout;
 
-      // Clear the internal mime type.
-      this._mimeType = '';
-
-      // Dispose of the old renderer.
-      if (this._renderer) {
-        this._renderer.dispose();
-        this._renderer = null;
-      }
-
-      // Finished.
-      return;
-    }
+    // Fetch the existing renderer from the layout.
+    let renderer = layout.widget as IRenderMime.IRenderer;
 
     // Set up the item data.
     let trusted = this._item.trusted;
@@ -305,40 +272,33 @@ class OutputItemView extends Widget {
     // Look up the preferred mime type for the model.
     let mimeType = this.rendermime.preferredMimeType(data, !trusted) || '';
 
+    // Look up the old mime type for the model.
+    let oldMimeType = this.node.dataset['mimeType'];
+
     // Update the node state.
     this.toggleClass('jp-mod-trusted', trusted);
     this.node.dataset['outputType'] = this._item.type;
+    this.node.dataset['mimeType'] = mimeType;
 
     // Update the existing renderer in-place if possible.
-    if (this._renderer && this._mimeType === mimeType) {
-      this._renderer.renderModel(model);
+    if (renderer && oldMimeType === mimeType) {
+      renderer.renderModel(model);
       return;
     }
 
-    // Update the internal mime type.
-    this._mimeType = mimeType;
-
-    // Update the node mime type.
-    this.node.dataset['mimeType'] = mimeType;
-
-    // Dispose the existing renderer.
-    if (this._renderer) {
-      this._renderer.dispose();
-      this._renderer = null;
-    }
-
-    // Bail if there is no mime type to render.
+    // Clear the layout if there is no mime type to render.
     if (!mimeType) {
+      layout.widget = null;
       return;
     }
 
     // Create a new renderer for the mime type.
-    this._renderer = this.rendermime.createRenderer(mimeType);
-    this._renderer.addClass('jp-OutputItemView-renderer');
-    this._renderer.renderModel(model);
+    renderer = this.rendermime.createRenderer(mimeType);
+    renderer.addClass('jp-OutputItemView-renderer');
+    renderer.renderModel(model);
 
     // Set the renderer on the layout.
-    (this.layout as SingleLayout).widget = this._renderer;
+    layout.widget = renderer;
   }
 
   /**
@@ -347,6 +307,9 @@ class OutputItemView extends Widget {
   private _onStoreChanged(): void {
     // Look up the output item.
     let item = this.store.state.outputItemTable.get(this.itemId) || null;
+
+    // If the item id does not exist, use the empty item.
+    item = item || Private.emptyItem;
 
     // Bail early if the output item did not change.
     if (this._item === item) {
@@ -374,9 +337,7 @@ class OutputItemView extends Widget {
     this.store.dispatch(new SetOutputDataAction(this.itemId, data, metadata));
   };
 
-  private _mimeType = '';
-  private _item: OutputItem | null = null;
-  private _renderer: IRenderMime.IRenderer | null;
+  private _item: OutputItem = Private.emptyItem;
 }
 
 
@@ -417,6 +378,18 @@ namespace Private {
    */
   export
   const RefreshRequest = new ConflatableMessage('refresh-request');
+
+  /**
+   * An empty default output area model.
+   */
+  export
+  const emptyArea = new OutputArea();
+
+  /**
+   * An empty default output item model.
+   */
+  export
+  const emptyItem = new DisplayDataOutput();
 
   /**
    * Get the mime data for an output item.

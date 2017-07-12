@@ -15,7 +15,7 @@ import {
 } from '@phosphor/messaging';
 
 import {
-  PanelLayout, Widget
+  PanelLayout, SingleLayout, Widget
 } from '@phosphor/widgets';
 
 import {
@@ -213,7 +213,7 @@ class OutputItemView extends Widget {
     this.itemId = options.itemId;
     this.rendermime = options.rendermime;
     this.store.changed.connect(this._onStoreChanged, this);
-    this.layout = new PanelLayout();
+    this.layout = new SingleLayout();
   }
 
   /**
@@ -297,18 +297,17 @@ class OutputItemView extends Widget {
     let trusted = this._item.trusted;
     let data = Private.getData(this._item);
     let metadata = Private.getMetadata(this._item);
+    let setData = this._setData;
+
+    // Create the new mime model.
+    let model: IRenderMime.IMimeModel = { trusted, data, metadata, setData };
+
+    // Look up the preferred mime type for the model.
+    let mimeType = this.rendermime.preferredMimeType(data, !trusted) || '';
 
     // Update the node state.
     this.toggleClass('jp-mod-trusted', trusted);
     this.node.dataset['outputType'] = this._item.type;
-
-    // Create the new mime model.
-    let model: IRenderMime.IMimeModel = {
-      trusted, data, metadata, setData: this._setData
-    };
-
-    // Look up the preferred mime type for the model.
-    let mimeType = this.rendermime.preferredMimeType(data, !trusted) || '';
 
     // Update the existing renderer in-place if possible.
     if (this._renderer && this._mimeType === mimeType) {
@@ -338,8 +337,8 @@ class OutputItemView extends Widget {
     this._renderer.addClass('jp-OutputItemView-renderer');
     this._renderer.renderModel(model);
 
-    // Add the renderer to the layout.
-    (this.layout as PanelLayout).addWidget(this._renderer);
+    // Set the renderer on the layout.
+    (this.layout as SingleLayout).widget = this._renderer;
   }
 
   /**
